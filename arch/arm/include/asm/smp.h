@@ -124,4 +124,6 @@ struct of_cpu_method {
  */
 extern void smp_set_ops(const struct smp_operations *);
 
+extern void smp_send_all_cpu_backtrace(void);
+
 #endif /* ifndef __ASM_ARM_SMP_H */
