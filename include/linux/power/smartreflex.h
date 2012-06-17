@@ -23,6 +23,7 @@
 #include <linux/types.h>
 #include <linux/platform_device.h>
 #include <linux/delay.h>
+#include <linux/notifier.h>
 #include <linux/platform_data/voltage-omap.h>
 
 /*
@@ -190,9 +191,11 @@ struct omap_sr {
 	struct list_head		node;
 	struct platform_device		*pdev;
 	struct omap_sr_nvalue_table	*nvalue_table;
+	struct atomic_notifier_head	irq_notifier_list;
 	struct voltagedomain		*voltdm;
 	struct dentry			*dbg_dir;
 	unsigned int			irq;
+	bool				irq_enabled;
 	int				srid;
 	int				ip_type;
 	int				nvalue_count;
@@ -363,6 +366,9 @@ int sr_disable_errgen(struct omap_sr *sr);
 int sr_configure_minmax(struct omap_sr *sr);
 struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(
 				struct omap_sr *sr, u32 volt);
+int sr_notifier_control(struct omap_sr *sr, bool enable);
+int sr_irq_notifier_register(struct omap_sr *sr, struct notifier_block *nb);
+int sr_irq_notifier_unregister(struct omap_sr *sr, struct notifier_block *nb);
 
 /* API to register the smartreflex class driver with the smartreflex driver */
 int sr_register_class(struct omap_sr_class_data *class_data);

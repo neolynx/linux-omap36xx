@@ -174,7 +174,7 @@ static irqreturn_t sr_interrupt(int irq, void *data)
 	switch (sr_info->ip_type) {
 	case SR_TYPE_V1:
 		/* Status bits are one bit before enable bits in v1 */
-		value = notifier_to_irqen_v1(sr_class->notify_flags) >> 1;
+		value = notifier_to_irqen_v1(sr_info->notify_flags) >> 1;
 
 		/* Read the status bits */
 		status = sr_read_reg(sr_info, ERRCONFIG_V1);
@@ -186,7 +186,7 @@ static irqreturn_t sr_interrupt(int irq, void *data)
 		value = irqstat_to_notifier_v1(status);
 		break;
 	case SR_TYPE_V2:
-		value = notifier_to_irqen_v2(sr_class->notify_flags);
+		value = notifier_to_irqen_v2(sr_info->notify_flags);
 		/* Read the status bits */
 		status = sr_read_reg(sr_info, IRQSTATUS);
 		status &= value;
@@ -208,18 +208,22 @@ static irqreturn_t sr_interrupt(int irq, void *data)
 			"Disabling to prevent spamming!!\n",
 			__func__, status);
 		disable_irq_nosync(sr_info->irq);
+		sr_info->irq_enabled = false;
 	} else {
+		int ret;
 		/*
 		 * If the notifier does not exist OR reports inability to
 		 * handle, disable as well
 		 */
-		if (!sr_class->notify ||
-		    sr_class->notify(sr_info, value)) {
+		ret = atomic_notifier_call_chain(&sr_info->irq_notifier_list,
+						 value, sr_info);
+		if (ret) {
 			dev_err(&sr_info->pdev->dev,
 				"%s: Callback cant handle int status=0x%08x."
 				"Disabling to prevent spam!!\n",
 				__func__, status);
 			disable_irq_nosync(sr_info->irq);
+			sr_info->irq_enabled = false;
 		}
 	}
 
@@ -312,7 +316,7 @@ static int sr_late_init(struct omap_sr *sr_info)
 {
 	int ret = 0;
 
-	if (sr_class->notify && sr_class->notify_flags && sr_info->irq) {
+	if (sr_info->notify_flags && sr_info->irq) {
 		ret = devm_request_irq(&sr_info->pdev->dev, sr_info->irq,
 				       sr_interrupt, 0, sr_info->name, sr_info);
 		if (ret)
@@ -673,6 +677,17 @@ int sr_configure_minmax(struct omap_sr *sr)
 	return 0;
 }
 
+int sr_irq_notifier_register(struct omap_sr *sr, struct notifier_block *nb)
+{
+	return atomic_notifier_chain_register(&sr->irq_notifier_list, nb);
+}
+
+int sr_irq_notifier_unregister(struct omap_sr *sr, struct notifier_block *nb)
+{
+	return atomic_notifier_chain_unregister(&sr->irq_notifier_list, nb);
+}
+
+
 /**
  * sr_enable() - Enables the smartreflex module.
  * @sr:		pointer to which the SR module to be configured belongs to.
@@ -774,6 +789,83 @@ void sr_disable(struct omap_sr *sr)
 	}
 
 	pm_runtime_put_sync_suspend(&sr->pdev->dev);
+}
+
+static int sr_configure_interrupts(struct omap_sr *sr, bool enable)
+{
+	u32 value = 0;
+
+	switch (sr->ip_type) {
+	case SR_TYPE_V1:
+		value = notifier_to_irqen_v1(sr->notify_flags);
+		break;
+	case SR_TYPE_V2:
+		value = notifier_to_irqen_v2(sr->notify_flags);
+		break;
+	default:
+		dev_warn(&sr->pdev->dev, "%s: unknown type of sr??\n",
+			 __func__);
+		return -EINVAL;
+	}
+
+	if (!enable)
+		sr_write_reg(sr, IRQSTATUS, value);
+
+	switch (sr->ip_type) {
+	case SR_TYPE_V1:
+		sr_modify_reg(sr, ERRCONFIG_V1, value,
+			      (enable) ? value : 0);
+		break;
+	case SR_TYPE_V2:
+		sr_write_reg(sr, (enable) ? IRQENABLE_SET : IRQENABLE_CLR,
+			     value);
+		break;
+	}
+
+	return 0;
+}
+
+/**
+ * sr_notifier_control() - control the notifier mechanism
+ * @sr:                SR module to be configured.
+ * @enable:	true to enable notifiers and false to disable the same
+ *
+ * SR modules allow an MCU interrupt mechanism that vary based on the IP
+ * revision, we allow the system to generate interrupt if the class driver
+ * has capability to handle the same. it is upto the class driver to ensure
+ * the proper sequencing and handling for a clean implementation. returns
+ * 0 if all goes fine, else returns failure results
+ */
+int sr_notifier_control(struct omap_sr *sr, bool enable)
+{
+	if (!sr) {
+		pr_warn("%s: sr corresponding to domain not found\n",
+			__func__);
+		return -EINVAL;
+	}
+	if (!sr->autocomp_active)
+		return -EINVAL;
+
+	/* If I could never register an ISR, why bother?? */
+	if (!(sr->notify_flags && sr->irq)) {
+		dev_warn(&sr->pdev->dev,
+			 "%s: unable to setup IRQ without handling mechanism\n",
+			 __func__);
+		return -EINVAL;
+	}
+
+	if (enable != sr->irq_enabled) {
+		if (enable) {
+			sr_configure_interrupts(sr, true);
+			enable_irq(sr->irq);
+		} else {
+			disable_irq(sr->irq);
+			sr_configure_interrupts(sr, false);
+		}
+		sr->irq_enabled = enable;
+	}
+
+	return 0;
 }
 
 /**
@@ -1328,6 +1420,7 @@ static int omap_sr_probe(struct platform_device *pdev)
 
 	sr_info->pdev = pdev;
 	sr_info->srid = pdev->id;
+	ATOMIC_INIT_NOTIFIER_HEAD(&sr_info->irq_notifier_list);
 
 	sr_set_clk_length(sr_info);
 
