@@ -196,6 +196,10 @@ static int omap_cpufreq_remove(struct platform_device *pdev)
 static struct platform_driver omap_cpufreq_platdrv = {
 	.driver = {
 		.name	= "omap-cpufreq",
+<<<<<<< HEAD
+=======
+		.owner	= THIS_MODULE,
+>>>>>>> 49ded525d448... cpufreq: OMAP: instantiate omap-cpufreq as a platform_driver
 	},
 	.probe		= omap_cpufreq_probe,
 	.remove		= omap_cpufreq_remove,

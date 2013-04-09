@@ -241,6 +241,12 @@ int __maybe_unused omap_pm_nop_init(void)
 	platform_device_register_full(&devinfo);
 }
 
+static inline void omap_init_cpufreq(void)
+{
+	struct platform_device_info devinfo = { .name = "omap-cpufreq", };
+	platform_device_register_full(&devinfo);
+}
+
 static int __init omap2_common_pm_init(void)
 {
 	if (!of_have_populated_dt())
@@ -260,29 +266,29 @@ int __init omap2_common_pm_late_init(void)
 	if (!omap_pm_soc_init)
 		return 0;
 
-	/* Init the voltage layer */
-	omap3_twl_init();
-	omap4_twl_init();
+        /* Init the voltage layer */
+        omap3_twl_init();
+        omap4_twl_init();
 
-	/*
-	 * In the case of DT, the PMIC and SR initialization will be done using
-	 * a completely different mechanism.
-	 * Disable this part if a DT blob is available.
-	 */
-	if (!of_have_populated_dt()) {
-		omap_pmic_late_init();
-                omap_voltage_late_init();
+        /*
+         * In the case of DT, the PMIC and SR initialization will be done using
+         * a completely different mechanism.
+         * Disable this part if a DT blob is available.
+         */
+        if (!of_have_populated_dt()) {
+            omap_pmic_late_init();
+            omap_voltage_late_init();
 
-                /* Initialize the voltages */
-                omap3_init_voltages();
-                omap4_init_voltages();
+            /* Initialize the voltages */
+            omap3_init_voltages();
+            omap4_init_voltages();
 
                 /* Smartreflex device init */
                 omap_devinit_smartreflex();
-        }
 
-	/* cpufreq dummy device instantiation */
-	omap_init_cpufreq();
+		/* cpufreq dummy device instantiation */
+		omap_init_cpufreq();
+	}
 
 	error = omap_pm_soc_init();
 	if (error)
