@@ -100,7 +100,7 @@ static int __init omap2_set_init_voltage(char *vdd_name, char *clk_name,
 	}
 
 	if (!strncmp(oh_name, "mpu", 3))
-		/* 
+		/*
 		 * All current OMAPs share voltage rail and clock
 		 * source, so CPU0 is used to represent the MPU-SS.
 		 */
@@ -232,6 +232,21 @@ static void __init omap4_init_voltages(void)
 
 int __maybe_unused omap_pm_nop_init(void)
 {
+	struct platform_device_info devinfo = { };
+
+	if (!of_have_populated_dt())
+		devinfo.name = "omap-cpufreq";
+	else
+		devinfo.name = "cpufreq-cpu0";
+	platform_device_register_full(&devinfo);
+}
+
+static int __init omap2_common_pm_init(void)
+{
+	if (!of_have_populated_dt())
+		omap2_init_processor_devices();
+	omap_pm_if_init();
+
 	return 0;
 }
 
@@ -247,14 +262,26 @@ int __init omap2_common_pm_late_init(void)
 	/* Init the voltage layer */
 	omap3_twl_init();
 	omap4_twl_init();
-	omap_voltage_late_init();
 
-	/* Initialize the voltages */
-	omap3_init_voltages();
-	omap4_init_voltages();
+	/*
+	 * In the case of DT, the PMIC and SR initialization will be done using
+	 * a completely different mechanism.
+	 * Disable this part if a DT blob is available.
+	 */
+	if (!of_have_populated_dt()) {
+		omap_pmic_late_init();
+                omap_voltage_late_init();
 
-	/* Smartreflex device init */
-	omap_devinit_smartreflex();
+                /* Initialize the voltages */
+                omap3_init_voltages();
+                omap4_init_voltages();
+
+                /* Smartreflex device init */
+                omap_devinit_smartreflex();
+        }
+
+	/* cpufreq dummy device instantiation */
+	omap_init_cpufreq();
 
 	error = omap_pm_soc_init();
 	if (error)
