@@ -54,6 +54,19 @@
 			clocks = <&dpll_mpu_ck>;
 			clock-names = "cpu";
 
+			/*
+			 * To consider voltage drop between PMIC and SoC,
+			 * tolerance value is reduced to 2% from 4% and
+			 * voltage value is increased as a precaution.
+			 */
+			operating-points = <
+				/* kHz    uV */
+				720000  1285000
+				600000  1225000
+				500000  1125000
+				275000  1125000
+			>;
+			voltage-tolerance = <2>; /* 2 percentage */
 			clock-latency = <300000>; /* From omap-cpufreq driver */
 		};
 	};
@@ -256,6 +269,7 @@
 			reg = <0x48200000 0x1000>;
 		};
 
+<<<<<<< HEAD
 		edma: edma@49000000 {
 			compatible = "ti,edma3-tpcc";
 			ti,hwmods = "tpcc";
