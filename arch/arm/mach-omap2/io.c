@@ -603,6 +603,12 @@ void __init am43xx_init_late(void)
 {
 	omap_pm_soc_init = amx3_common_pm_init;
 }
+
+void __init am33xx_init_late(void)
+{
+	omap2_common_pm_late_init();
+}
+
 #endif
 
 #ifdef CONFIG_ARCH_OMAP4
