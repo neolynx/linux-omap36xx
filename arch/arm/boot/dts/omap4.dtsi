@@ -140,6 +140,58 @@
 			     <GIC_SPI 10 IRQ_TYPE_LEVEL_HIGH>;
 
 		l4_wkup: interconnect@4a300000 {
+                };
+
+		counter32k: counter@4a304000 {
+			compatible = "ti,omap-counter32k";
+			reg = <0x4a304000 0x20>;
+			ti,hwmods = "counter_32k";
+		};
+
+		dpll_mpu: dpll_mpu {
+			#clock-cells = <0>;
+			compatible = "ti,omap-clock";
+		};
+
+		omap4_pmx_core: pinmux@4a100040 {
+			compatible = "ti,omap4-padconf", "pinctrl-single";
+			reg = <0x4a100040 0x0196>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,register-width = <16>;
+			pinctrl-single,function-mask = <0x7fff>;
+		};
+		omap4_pmx_wkup: pinmux@4a31e040 {
+			compatible = "ti,omap4-padconf", "pinctrl-single";
+			reg = <0x4a31e040 0x0038>;
+			#address-cells = <1>;
+			#size-cells = <0>;
+			pinctrl-single,register-width = <16>;
+			pinctrl-single,function-mask = <0x7fff>;
+		};
+
+		sdma: dma-controller@4a056000 {
+			compatible = "ti,omap4430-sdma";
+			reg = <0x4a056000 0x1000>;
+			interrupts = <0 12 0x4>,
+				     <0 13 0x4>,
+				     <0 14 0x4>,
+				     <0 15 0x4>;
+			#dma-cells = <1>;
+			#dma-channels = <32>;
+			#dma-requests = <127>;
+		};
+
+		gpio1: gpio@4a310000 {
+			compatible = "ti,omap4-gpio";
+			reg = <0x4a310000 0x200>;
+			interrupts = <0 29 0x4>;
+			ti,hwmods = "gpio1";
+			ti,gpio-always-on;
+			gpio-controller;
+			#gpio-cells = <2>;
+			interrupt-controller;
+			#interrupt-cells = <2>;
 		};
 
 		l4_cfg: interconnect@4a000000 {
