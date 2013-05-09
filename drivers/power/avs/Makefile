@@ -4,7 +4,7 @@ obj-$(CONFIG_ROCKCHIP_IODOMAIN)		+= rockchip-io-domain.o
 ifneq ($(CONFIG_POWER_TI_HARDWARE_VOLTAGE_CONTROL),)
 
 # OMAP Common
-omap-volt-common			=  omap_vc.o
+omap-volt-common			=  omap_vc.o omap_vp.o
 
 # OMAP SoC specific
 ifneq ($(CONFIG_ARCH_OMAP3),)
