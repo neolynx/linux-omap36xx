@@ -18,3 +18,18 @@ config ROCKCHIP_IODOMAIN
           Say y here to enable support io domains on Rockchip SoCs. It is
           necessary for the io domain setting of the SoC to match the
           voltage supplied by the regulators.
+
+config POWER_TI_HARDWARE_VOLTAGE_CONTROL
+	tristate "TI OMAP SoC Voltage Control support"
+	depends on OF && ARCH_OMAP && REGULATOR_TI_OMAP_PMIC
+	select REGMAP_MMIO
+	help
+	  Select this option to support Texas Instruments' custom Voltage
+	  Processor + Voltage Controller data interface used in OMAP SoCs
+	  to enable Adaptive Voltage Scaling(AVS) and Device Frequency and
+	  Voltage Scaling(DVFS). This is a specific "write-only" interface
+	  designed to interface with I2C based PMICs. These two subsystems
+	  in OMAP do not exist independent of each other as they are
+	  practically useless without each other.
+
+	  Say Y here to enable TI OMAP SoC Voltage Control support.
