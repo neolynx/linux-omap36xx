@@ -852,13 +852,19 @@ static int omap_sr_probe(struct platform_device *pdev)
 	int i, ret = 0;
 
 	sr_info = devm_kzalloc(&pdev->dev, sizeof(struct omap_sr), GFP_KERNEL);
-	if (!sr_info)
+	if (!sr_info) {
+		dev_err(&pdev->dev, "%s: unable to allocate sr_info\n",
+			__func__);
 		return -ENOMEM;
+        }
 
 	sr_info->name = devm_kzalloc(&pdev->dev,
 				     SMARTREFLEX_NAME_LEN, GFP_KERNEL);
-	if (!sr_info->name)
+	if (!sr_info->name) {
+		dev_err(&pdev->dev, "%s: unable to allocate SR instance name\n",
+			__func__);
 		return -ENOMEM;
+	}
 
 	platform_set_drvdata(pdev, sr_info);
 
