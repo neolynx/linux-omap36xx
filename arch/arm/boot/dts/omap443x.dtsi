@@ -64,7 +64,44 @@
 			reg = <0x4a307bd8 0x8>, <0x4a306010 0x4>;
 			reg-names = "base-address", "int-address";
 		};
+        };
 
+	avs_mpu {
+		compatible = "ti,avs";
+		reg = <0x4a0d9000 0x3c>, <0x4a002240 0x10>;
+		reg-names = "base-address", "efuse-address";
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ti,hwmods = "smartreflex_mpu";
+		ti,voltdm_name = "mpu";
+		ti,ip_type = <0x2>;
+		ti,senp_mod = <0x1>;
+		ti,senn_mod = <0x1>;
+		ti,err_weight = <0x4>;
+		ti,err_maxlimit = <0x2>;
+		ti,accum_data = <0x1f4>;
+		ti,senn_avgweight = <0x3>;
+		ti,senp_avgweight = <0x3>;
+		ti,calibration_volt = <0x1>;
+		ti,calibration_period = <0x3>;
+		ti,calibration_loop = <0x1>;
+		ti,fuse_len_24bits;
+		ti,autocomp_active;
+		ti,boot_voltage = <1200000>;
+		ti,avs_info = <
+		/* uV	efuse	errminlimit errgain	volt_margin*/
+		1025000	0x0	0xf4		0x0c	0
+		1200000	0x3	0xf9		0x16	0
+		1313000	0x6	0xfa		0x23	0
+		1375000	0x9	0xfa		0x27	0
+		>;
+		pmic-supply = <&omap_twl6030_vcore1>;
+	};
+
+	bandgap {
+		reg = <0x4a002260 0x4
+		       0x4a00232C 0x4>;
+		compatible = "ti,omap4430-bandgap";
 	};
 
 };
