@@ -190,6 +190,9 @@ struct omap_sr {
 	u32				senp_avgweight;
 	u32				senp_mod;
 	u32				senn_mod;
+	u32				notify_flags;
+	u32				current_nominal_voltage;
+	u32				pmic_step_uv;
 	void __iomem			*base;
 	enum omap_sr_calibration_period		calibration_period;
 	u32					recalibration_period;

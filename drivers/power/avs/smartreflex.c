@@ -12,6 +12,9 @@
  * Copyright (C) 2007 Texas Instruments, Inc.
  * Lesly A M <x0080970@ti.com>
  *
+ * Copyright (C) 2013 Texas Instruments, Inc.
+ * Andrii Tseglytskyi <andrii.tseglytskyi@ti.com>
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -27,6 +30,8 @@
 #include <linux/slab.h>
 #include <linux/pm_runtime.h>
 #include <linux/power/smartreflex.h>
+
+#include <linux/of_device.h>
 
 #define DRIVER_NAME	"smartreflex"
 #define SMARTREFLEX_NAME_LEN	32
@@ -231,7 +236,6 @@ static void sr_stop_vddautocomp(struct omap_sr *sr)
  */
 static int sr_late_init(struct omap_sr *sr_info)
 {
-	struct omap_sr_data *pdata = sr_info->pdev->dev.platform_data;
 	int ret = 0;
 
 	if (sr_class->notify && sr_class->notify_flags && sr_info->irq) {
@@ -242,7 +246,7 @@ static int sr_late_init(struct omap_sr *sr_info)
 		disable_irq(sr_info->irq);
 	}
 
-	if (pdata && pdata->enable_on_init)
+	if (sr_info->autocomp_active)
 		sr_start_vddautocomp(sr_info);
 
 	return ret;
@@ -835,6 +839,301 @@ void omap_sr_register_pmic(struct omap_sr_pmic_data *pmic_data)
 	sr_pmic_data = pmic_data;
 }
 
+static int __init sr_set_nvalues(struct omap_sr *sr_info,
+				 struct platform_device *pdev)
+{
+	const struct property *prop;
+	const char *pname;
+	bool fuse_len_24bits;
+	const __be32 *avs_info_entry;
+	u32 num_table_entries;
+	u32 num_entry_values = 5;
+	struct omap_sr_nvalue_table *nvalue_table;
+	void __iomem *efuse_base;
+	struct resource *mem;
+	u32 i, j;
+
+	pname = "ti,fuse_len_24bits";
+	fuse_len_24bits = of_property_read_bool(pdev->dev.of_node, pname);
+
+	pname = "ti,avs_info";
+	prop = of_find_property(pdev->dev.of_node, pname, NULL);
+	if (!prop) {
+		dev_err(&pdev->dev, "No '%s' property?\n", pname);
+		return -ENODEV;
+	}
+
+	if (!prop->value) {
+		dev_err(&pdev->dev, "Empty '%s' property?\n", pname);
+		return -ENODATA;
+	}
+
+	/*
+	 * Each avs_info is a set of n-tuple, where n is num_values, consisting
+	 * of voltage and a set of detection logic for AVS information for that
+	 * voltage to apply.
+	 */
+	num_table_entries = prop->length / sizeof(u32);
+	if (!num_table_entries || (num_table_entries % num_entry_values)) {
+		dev_err(&pdev->dev, "All '%s' list entries need %d vals\n",
+			pname, num_entry_values);
+		return -EINVAL;
+	}
+	num_table_entries /= num_entry_values;
+
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+					   "efuse-address");
+	efuse_base = devm_ioremap_nocache(&pdev->dev, mem->start,
+					  resource_size(mem));
+	if (IS_ERR(efuse_base)) {
+		dev_err(&pdev->dev, "%s: ioremap for EFUSE failed\n", __func__);
+		return PTR_ERR(efuse_base);
+	}
+
+	nvalue_table =
+		devm_kzalloc(&pdev->dev,
+			     sizeof(struct omap_sr_nvalue_table) *
+			     num_table_entries,
+			     GFP_KERNEL);
+
+	if (!nvalue_table) {
+		pr_err("OMAP: SmartReflex: cannot allocate memory for n-value table\n");
+		return -ENOMEM;
+	}
+
+	avs_info_entry = prop->value;
+	for (i = 0, j = 0; i < num_table_entries; i++) {
+		u32 volt_nominal, efuse_offs, errminlimit,
+			nvalue, errgain, volt_margin;
+
+		volt_nominal = be32_to_cpup(avs_info_entry++);
+		efuse_offs = be32_to_cpup(avs_info_entry++);
+		errminlimit = be32_to_cpup(avs_info_entry++);
+		errgain = be32_to_cpup(avs_info_entry++);
+		volt_margin = be32_to_cpup(avs_info_entry++);
+		/*
+		 * In OMAP4 the efuse registers are 24 bit aligned.
+		 * A __raw_readl will fail for non-32 bit aligned address
+		 * and hence the 8-bit read and shift.
+		 */
+		if (fuse_len_24bits) {
+			nvalue = readb(efuse_base + efuse_offs) |
+				readb(efuse_base + efuse_offs + 1) << 8 |
+				readb(efuse_base + efuse_offs + 2) << 16;
+		} else {
+			nvalue = readl(efuse_base + efuse_offs);
+		}
+
+		if (nvalue == 0)
+			continue;
+
+		nvalue_table[j].nvalue = nvalue;
+		nvalue_table[j].efuse_offs = efuse_offs;
+		nvalue_table[j].errminlimit = errminlimit;
+		nvalue_table[j].volt_nominal = volt_nominal;
+		nvalue_table[j].errgain = errgain;
+		nvalue_table[j].volt_margin = volt_margin;
+
+		j++;
+	}
+
+	sr_info->nvalue_count = j;
+	sr_info->nvalue_table = nvalue_table;
+
+	return 0;
+}
+
+static const struct of_device_id ti_avs_of_match[] = {
+	{.compatible = "ti,avs", .data = NULL},
+	{ },
+};
+
+static int __init omap_sr_init_data_dtb(struct omap_sr *sr_info,
+					struct platform_device *pdev)
+{
+	struct resource *mem;
+	const struct of_device_id *match;
+	const char *pname, *voltdm_name;
+	struct device *dev = &pdev->dev;
+	struct device_node *np;
+	int ret = 0;
+
+	match = of_match_device(ti_avs_of_match, dev);
+	if (!match) {
+		/* We do not expect this to happen */
+		dev_err(dev, "%s: Unable to match device\n", __func__);
+		return -ENODEV;
+	}
+
+	np = dev->of_node;
+
+	pname = "base-address";
+	mem = platform_get_resource_byname(pdev, IORESOURCE_MEM, pname);
+	sr_info->base = devm_ioremap_resource(dev, mem);
+	if (IS_ERR(sr_info->base)) {
+		dev_err(dev, "%s: ioremap for %s failed\n", __func__, pname);
+		return PTR_ERR(sr_info->base);
+	}
+
+	pname = "ti,hwmods";
+	ret = of_property_read_string(np, pname, (const char **)&sr_info->name);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,voltdm_name";
+	ret = of_property_read_string(np, pname, &voltdm_name);
+	if (ret)
+		goto err_property_read;
+
+	sr_info->voltdm = voltdm_lookup(voltdm_name);
+	if (!sr_info->voltdm) {
+		dev_err(dev, "%s: Unable to get voltage domain pointer for VDD %s\n",
+			__func__, voltdm_name);
+		goto err_property_read;
+	}
+
+	pname = "ti,ip_type";
+	ret = of_property_read_u32(np, pname, &sr_info->ip_type);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,senp_mod";
+	ret = of_property_read_u32(np, pname, &sr_info->senn_mod);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,senn_mod";
+	ret = of_property_read_u32(np, pname, &sr_info->senp_mod);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,err_weight";
+	ret = of_property_read_u32(np, pname, &sr_info->err_weight);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,err_maxlimit";
+	ret = of_property_read_u32(np, pname, &sr_info->err_maxlimit);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,accum_data";
+	ret = of_property_read_u32(np, pname, &sr_info->accum_data);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,senn_avgweight";
+	ret = of_property_read_u32(np, pname, &sr_info->senn_avgweight);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,senp_avgweight";
+	ret = of_property_read_u32(np, pname, &sr_info->senp_avgweight);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,notify_flags";
+	ret = of_property_read_u32(np, pname, &sr_info->notify_flags);
+	if (ret) {
+		sr_info->notify_flags = 0;
+		dev_info(dev, "Notifier is disabled for SmartReflex\n");
+	}
+
+	pname = "ti,calibration_volt";
+	ret = of_property_read_u32(np, pname, &sr_info->calibration_volt);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,calibration_period";
+	ret = of_property_read_u32(np, pname, &sr_info->calibration_period);
+	if (ret)
+		goto err_property_read;
+
+	if (AVS_CALIBRATION_PERIODIC == sr_info->calibration_period) {
+		pname = "ti,recalibration_period";
+		ret = of_property_read_u32(np, pname,
+					   &sr_info->recalibration_period);
+		if (ret)
+			goto err_property_read;
+	}
+
+	pname = "ti,calibration_loop";
+	ret = of_property_read_u32(np, pname, &sr_info->calibration_loop);
+	if (ret)
+		goto err_property_read;
+
+	pname = "ti,autocomp_active";
+	sr_info->autocomp_active = of_property_read_bool(np, pname);
+
+	pname = "ti,pmic_step_uv";
+	ret = of_property_read_u32(np, pname, &sr_info->pmic_step_uv);
+
+	/* SmartReflex is enabled on boot, retrieve boot voltage */
+	if (sr_info->autocomp_active) {
+		pname = "ti,boot_voltage";
+		ret = of_property_read_u32(np, pname,
+					   &sr_info->current_nominal_voltage);
+		if (ret)
+			goto err_property_read;
+	}
+
+	pname = "ti,avs_info";
+	ret = sr_set_nvalues(sr_info, pdev);
+	if (ret)
+		goto err_property_read;
+
+	return 0;
+
+err_property_read:
+	dev_err(dev, "Missing '%s' (%d)\n", pname, ret);
+
+	return ret;
+}
+
+static int __init omap_sr_init_data(struct omap_sr *sr_info,
+				    struct platform_device *pdev)
+{
+	struct omap_sr_data *pdata = pdev->dev.platform_data;
+	struct resource *mem;
+
+	if (!pdata) {
+		dev_err(&pdev->dev, "%s: platform data missing\n", __func__);
+		return -EINVAL;
+	}
+
+	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
+	sr_info->base = devm_ioremap_resource(&pdev->dev, mem);
+	if (IS_ERR(sr_info->base)) {
+		dev_err(&pdev->dev, "%s: ioremap fail\n", __func__);
+		return PTR_ERR(sr_info->base);
+	}
+
+	sr_info->name = devm_kzalloc(&pdev->dev,
+				     SMARTREFLEX_NAME_LEN, GFP_KERNEL);
+	if (!sr_info->name) {
+		dev_err(&pdev->dev, "%s: unable to allocate SR instance name\n",
+			__func__);
+		return -ENOMEM;
+	}
+
+	snprintf(sr_info->name, SMARTREFLEX_NAME_LEN, "%s", pdata->name);
+
+	sr_info->voltdm = pdata->voltdm;
+	sr_info->nvalue_table = pdata->nvalue_table;
+	sr_info->nvalue_count = pdata->nvalue_count;
+	sr_info->senn_mod = pdata->senn_mod;
+	sr_info->senp_mod = pdata->senp_mod;
+	sr_info->err_weight = pdata->err_weight;
+	sr_info->err_maxlimit = pdata->err_maxlimit;
+	sr_info->accum_data = pdata->accum_data;
+	sr_info->senn_avgweight = pdata->senn_avgweight;
+	sr_info->senp_avgweight = pdata->senp_avgweight;
+	sr_info->autocomp_active = pdata->enable_on_init;
+	sr_info->ip_type = pdata->ip_type;
+
+	return 0;
+}
+
 /* PM Debug FS entries to enable and disable smartreflex. */
 static int omap_sr_autocomp_show(void *data, u64 *val)
 {
@@ -882,8 +1181,7 @@ DEFINE_SIMPLE_ATTRIBUTE(pm_sr_fops, omap_sr_autocomp_show,
 static int omap_sr_probe(struct platform_device *pdev)
 {
 	struct omap_sr *sr_info;
-	struct omap_sr_data *pdata = pdev->dev.platform_data;
-	struct resource *mem, *irq;
+	struct resource *irq;
 	struct dentry *nvalue_dir;
 	int i, ret = 0;
 
@@ -894,54 +1192,34 @@ static int omap_sr_probe(struct platform_device *pdev)
 		return -ENOMEM;
         }
 
-	sr_info->name = devm_kzalloc(&pdev->dev,
-				     SMARTREFLEX_NAME_LEN, GFP_KERNEL);
-	if (!sr_info->name) {
-		dev_err(&pdev->dev, "%s: unable to allocate SR instance name\n",
-			__func__);
-		return -ENOMEM;
-	}
-
 	platform_set_drvdata(pdev, sr_info);
 
-	if (!pdata) {
-		dev_err(&pdev->dev, "%s: platform data missing\n", __func__);
-		return -EINVAL;
-	}
-
-	mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	sr_info->base = devm_ioremap_resource(&pdev->dev, mem);
-	if (IS_ERR(sr_info->base)) {
-		dev_err(&pdev->dev, "%s: ioremap fail\n", __func__);
-		return PTR_ERR(sr_info->base);
-	}
-
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
-
-	pm_runtime_enable(&pdev->dev);
-	pm_runtime_irq_safe(&pdev->dev);
-
-	snprintf(sr_info->name, SMARTREFLEX_NAME_LEN, "%s", pdata->name);
-
-	sr_info->pdev = pdev;
-	sr_info->srid = pdev->id;
-	sr_info->voltdm = pdata->voltdm;
-	sr_info->nvalue_table = pdata->nvalue_table;
-	sr_info->nvalue_count = pdata->nvalue_count;
-	sr_info->senn_mod = pdata->senn_mod;
-	sr_info->senp_mod = pdata->senp_mod;
-	sr_info->err_weight = pdata->err_weight;
-	sr_info->err_maxlimit = pdata->err_maxlimit;
-	sr_info->accum_data = pdata->accum_data;
-	sr_info->senn_avgweight = pdata->senn_avgweight;
-	sr_info->senp_avgweight = pdata->senp_avgweight;
-	sr_info->autocomp_active = false;
-	sr_info->ip_type = pdata->ip_type;
-
 	if (irq)
 		sr_info->irq = irq->start;
 
+	/*
+	 * SmartReflex can be initialized using DTB entry
+	 * If DTB is not present, initialization is passed in the common way
+	 */
+	if (of_have_populated_dt())
+		ret = omap_sr_init_data_dtb(sr_info, pdev);
+	else
+		ret = omap_sr_init_data(sr_info, pdev);
+
+	if (ret) {
+		dev_err(&pdev->dev, "%s: Error during init (%d)\n",
+			__func__, ret);
+		return ret;
+	}
+
+	sr_info->pdev = pdev;
+	sr_info->srid = pdev->id;
+
 	sr_set_clk_length(sr_info);
+
+	pm_runtime_enable(&pdev->dev);
+	pm_runtime_irq_safe(&pdev->dev);
 
 	list_add(&sr_info->node, &sr_list);
 
@@ -1083,7 +1361,7 @@ static struct platform_driver smartreflex_driver = {
 	.shutdown	= omap_sr_shutdown,
 	.driver		= {
 		.name	= DRIVER_NAME,
-		.of_match_table	= omap_sr_match,
+		.of_match_table = of_match_ptr(ti_avs_of_match),
 	},
 };
 

@@ -1,0 +1,64 @@
+Adaptive Voltage Scaling (AVS) driver for Texas Instruments SoCs
+
+Required Properties:
+- compatible: "ti,avs"
+- reg: Address and length of the register set for the device. It contains
+the information of registers in the same order as described by reg-names
+- reg-names: Should contain the reg names
+	- "base-address"	- contains base address of SmartReflex module
+	- "efuse-address"	- contains base address, where specific setting are stored
+- #address-cell: should be 0
+- #size-cell: should be 0
+- interrupts: Optional. Number of GIC interrupt used for SmartReflex
+- ti,voltdm_name: name of corresponding voltage domain
+- ti,ip_type: HW IP type. Should be one of:
+	- 0x1
+	- 0x2
+- ti,senp_mod: P - sensor mode:
+	- 0x0 sensor is disabled
+	- 0x1 sensor is enabled
+- ti,senn_mod: N - sensor mode:
+	- 0x0 sensor is disabled
+	- 0x1 sensor is enabled
+- ti,err_weight: The AvgSenError weight
+- ti,err_maxlimit: The upper limit of SenError for interrupt generation
+- ti,accum_data: Number of Values to Accumulate
+- ti,senn_avgweight: The weighting factor for the SenN averager
+- ti,senp_avgweight: The weighting factor for the SenP averager
+- ti,calibration_volt: defines voltage type for next calibration. Should be one of:
+	- 0x1 - calibration should start from nominal voltage
+	- 0x2 - calibration should start from voltage, retrieved from EFUSE register
+	- 0x3 - calibration should start from pre-calibrated voltage
+- ti,calibration_period
+	- 0x1 - boot time calibration
+	- 0x2 - periodic calibration
+	- 0x3 - continuous calibration
+	- 0x4 - calibration is disabled. AVS transfers voltage to PMIC
+- ti,calibration_loop
+	- 0x1 - hardware calibration loop (typically Voltage Processor) is used
+	- 0x2 - software calibration loop is used
+	- 0x3 - calibration loop is not used
+- ti,recalibration_period: Optional. Recalibration period in milliseconds.
+	Must be set only in case if ti,calibration_period property "periodic calibration".
+- ti,fuse_len_24bits: Bool value
+	On some OMAPs efuse registers can be 24-bit length
+- ti,notify_flags: Optional. Should be defined if SmartReflex is going to use
+	interrupts for calibration. Can be one of:
+	- 0x1 - SR_NOTIFY_MCUACCUM
+	- 0x2 - SR_NOTIFY_MCUVALID
+	- 0x4 - SR_NOTIFY_MCUBOUND
+	- 0x8 - SR_NOTIFY_MCUDISACK
+- ti,autocomp_active: Bool value
+	Defines is AVS autocompleteion should be activated immediately on
+	driver probe
+- ti,pmic_step_uv: Optional. Needed for software calibration loop
+- ti,boot voltage: Optional. Defines boot voltage in case if
+	ti,autocomp_active property is set to true
+- ti,avs_info: An array of 5-tuples u32 items providing information about AVS
+	configuration needed per operational voltage of the device.
+	Each item consists of the following in the same order:
+	volt: voltage in uV - Nominal voltage
+	efuse: - offset for specific AVS settings per voltage
+	errminlimit: - configuration setting for hardware per voltage
+	errgain: - configuration setting for hardware per voltage
+	volt_margin: - margin to be add for calibrated voltage
