@@ -1035,19 +1035,11 @@ err_list_del:
 
 static int omap_sr_remove(struct platform_device *pdev)
 {
-	struct omap_sr_data *pdata = pdev->dev.platform_data;
-	struct omap_sr *sr_info;
+	struct omap_sr *sr_info = platform_get_drvdata(pdev);
 
-	if (!pdata) {
+	if (!sr_info) {
 		dev_err(&pdev->dev, "%s: platform data missing\n", __func__);
 		return -EINVAL;
-	}
-
-	sr_info = _sr_lookup(pdata->voltdm);
-	if (IS_ERR(sr_info)) {
-		dev_warn(&pdev->dev, "%s: omap_sr struct not found\n",
-			__func__);
-		return PTR_ERR(sr_info);
 	}
 
 	if (sr_info->autocomp_active)
@@ -1062,18 +1054,10 @@ static int omap_sr_remove(struct platform_device *pdev)
 
 static void omap_sr_shutdown(struct platform_device *pdev)
 {
-	struct omap_sr_data *pdata = pdev->dev.platform_data;
-	struct omap_sr *sr_info;
+	struct omap_sr *sr_info = platform_get_drvdata(pdev);
 
-	if (!pdata) {
+	if (!sr_info) {
 		dev_err(&pdev->dev, "%s: platform data missing\n", __func__);
-		return;
-	}
-
-	sr_info = _sr_lookup(pdata->voltdm);
-	if (IS_ERR(sr_info)) {
-		dev_warn(&pdev->dev, "%s: omap_sr struct not found\n",
-			__func__);
 		return;
 	}
 
