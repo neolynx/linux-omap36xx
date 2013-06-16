@@ -190,6 +190,7 @@ struct omap_sr {
 	char				*name;
 	struct list_head		node;
 	struct platform_device		*pdev;
+	struct regulator                *reg_supply;
 	struct omap_sr_nvalue_table	*nvalue_table;
 	struct atomic_notifier_head	irq_notifier_list;
 	struct voltagedomain		*voltdm;

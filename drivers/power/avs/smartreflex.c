@@ -32,6 +32,7 @@
 #include <linux/power/smartreflex.h>
 
 #include <linux/of_device.h>
+#include <linux/regulator/consumer.h>
 
 #define DRIVER_NAME	"smartreflex"
 #define SMARTREFLEX_NAME_LEN	32
@@ -1398,6 +1399,13 @@ static int omap_sr_probe(struct platform_device *pdev)
         }
 
 	platform_set_drvdata(pdev, sr_info);
+
+	sr_info->reg_supply = devm_regulator_get(&pdev->dev, "pmic");
+	if (IS_ERR(sr_info->reg_supply)) {
+		pr_err("%s: Can't get PMIC regulator for %s\n",
+		       __func__, sr_info->name);
+		return -EPROBE_DEFER;
+	}
 
 	irq = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	if (irq)
