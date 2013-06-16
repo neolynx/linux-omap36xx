@@ -723,6 +723,117 @@ static int omap_vp_voltage_get_range(struct device *dev, u32 *min_uv,
 	return 0;
 }
 
+/**
+ * omap_vp_update_errgain() - API to enable a particular VP
+ *
+ * This API enables a particular voltage processor. Needed by the smartreflex
+ * class drivers.
+ */
+int omap_vp_update_errgain(struct device *v_dev, u8 errorgain)
+{
+	struct omap_vp *vp = dev_get_drvdata(v_dev);
+
+	/* Enable VP */
+	regmap_update_bits(vp->regmap, vp->regs->config,
+			   CONFIG_ERROR_GAIN_MASK,
+			   errorgain << __ffs(CONFIG_ERROR_GAIN_MASK));
+	return 0;
+}
+
+/**
+ * omap_vp_enable() - API to enable a particular VP
+ * @v_dev:	voltage device
+ */
+int omap_vp_enable(struct device *v_dev, u32 target_volt)
+{
+	struct omap_vp *vp = dev_get_drvdata(v_dev);
+	int ret;
+
+	ret = omap_vp_set_init_voltage(vp, target_volt);
+	if (ret) {
+		dev_warn_ratelimited(vp->dev,
+				     "%s: Fail set init voltage at v=%d(%d)\n",
+				     __func__, target_volt, ret);
+		return ret;
+	}
+
+
+	/* Enable VP */
+	regmap_update_bits(vp->regmap, vp->regs->config,
+			   CONFIG_VP_ENABLE_MASK, CONFIG_VP_ENABLE_MASK);
+
+	return 0;
+}
+
+/**
+ * omap_vp_disable() - API to disable a particular VP
+ * @v_dev:	voltage device
+ */
+void omap_vp_disable(struct device *v_dev)
+{
+	struct omap_vp *vp = dev_get_drvdata(v_dev);
+
+	/* Disable VP */
+	regmap_update_bits(vp->regmap, vp->regs->config,
+			   CONFIG_VP_ENABLE_MASK, ~CONFIG_VP_ENABLE_MASK);
+
+	/*
+	 * Wait for VP idle Typical latency is <2us. Maximum latency is ~100us
+	 */
+	omap_vp_wait_for_idle(vp);
+}
+
+/**
+ * omap_vp_get_voltage() - API to get the current voltage processor voltage
+ * @v_dev:	voltage device
+ */
+u32 omap_vp_get_voltage(struct device *v_dev)
+{
+	u32 volt = 0;
+	u32 val;
+	u8 vsel;
+	int ret;
+	struct omap_vp *vp = dev_get_drvdata(v_dev);
+
+	ret = regmap_read(vp->regmap, vp->regs->voltage, &val);
+	if (ret) {
+		dev_warn_ratelimited(v_dev,
+				     "%s: unable to read config reg (%d)\n",
+				     __func__, ret);
+		return 0;
+	}
+
+	vsel = (val & VOLTAGE_MASK) >> __ffs(VOLTAGE_MASK);
+	ret = vp->pmic->ops->vsel_to_uv(vp->pmic, vsel, &val);
+
+	if (!ret)
+		volt = val;
+
+	return volt;
+}
+
+/**
+ * omap_vp_check_tranxdone() - API to see if TRANXDONE is set
+ * @v_dev:	voltage device
+ */
+bool omap_vp_check_tranxdone(struct device *v_dev)
+{
+	struct omap_vp *vp = dev_get_drvdata(v_dev);
+	return omap_vp_check_txdone(vp);
+}
+
+/**
+ * omap_vp_clear_tranxdone() - API to clear TRANXDONE
+ * @v_dev:	voltage device
+ *
+ * write of 1 bit clears that interrupt bit only.
+ */
+void omap_vp_clear_tranxdone(struct device *v_dev)
+{
+	struct omap_vp *vp = dev_get_drvdata(v_dev);
+	omap_vp_clear_txdone(vp);
+};
+
 static struct omap_pmic_controller_ops voltage_processor_ops = {
 	.devm_pmic_register = devm_omap_vp_get,
 	.voltage_set = omap_vp_voltage_set,

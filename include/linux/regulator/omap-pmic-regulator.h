@@ -150,6 +150,12 @@ struct omap_pmic {
 
 #if IS_ENABLED(CONFIG_REGULATOR_TI_OMAP_PMIC)
 int omap_pmic_register_controller_ops(struct omap_pmic_controller_ops *cops);
+int omap_vp_update_errgain(struct device *v_dev, u8 errorgain);
+int omap_vp_enable(struct device *v_dev, u32 target_volt);
+void omap_vp_disable(struct device *v_dev);
+u32 omap_vp_get_voltage(struct device *v_dev);
+bool omap_vp_check_tranxdone(struct device *v_dev);
+void omap_vp_clear_tranxdone(struct device *v_dev);
 #else
 static inline int omap_pmic_register_controller_ops(struct
 						    omap_pmic_controller_ops
@@ -157,6 +163,29 @@ static inline int omap_pmic_register_controller_ops(struct
 {
 	return -EINVAL;
 }
+static inline int omap_vp_update_errgain(struct device *v_dev, u8 errorgain)
+{
+	return -EINVAL;
+}
+static inline int omap_vp_enable(struct device *v_dev, u32 target_volt)
+{
+	return -EINVAL;
+}
+static inline void omap_vp_disable(struct device *v_dev)
+{
+}
+static inline u32 omap_vp_get_voltage(struct device *v_dev)
+{
+	return 0;
+}
+static inline bool omap_vp_check_tranxdone(struct device *v_dev)
+{
+	return false;
+}
+static inline void omap_vp_clear_tranxdone(struct device *v_dev)
+{
+}
+
 #endif
 
 #endif				/* __POWER_OMAP_PMIC_H */

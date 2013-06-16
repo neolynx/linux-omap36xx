@@ -116,8 +116,6 @@ extern struct omap_vp_param omap4_iva_vp_data;
 extern struct omap_vp_param omap4_core_vp_data;
 
 void omap_vp_init(struct voltagedomain *voltdm);
-void omap_vp_enable(struct voltagedomain *voltdm);
-void omap_vp_disable(struct voltagedomain *voltdm);
 int omap_vp_forceupdate_scale(struct voltagedomain *voltdm,
 			      unsigned long target_volt);
 int omap_vp_update_errorgain(struct voltagedomain *voltdm,
