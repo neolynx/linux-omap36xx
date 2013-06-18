@@ -74,3 +74,19 @@
 };
 
 /include/ "omap443x-clocks.dtsi"
+
+&vc_mpu {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_iva {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+

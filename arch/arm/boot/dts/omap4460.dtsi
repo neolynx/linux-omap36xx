@@ -92,6 +92,7 @@
 	coefficients = <348 (-9301)>;
 };
 
+<<<<<<< HEAD
 /* Only some L4 CFG interconnect ranges are different on 4460 */
 &l4_cfg_segment_300000 {
 	ranges = <0x00000000 0x00300000 0x020000>,	/* ap 67 */
@@ -129,3 +130,19 @@
 };
 
 /include/ "omap446x-clocks.dtsi"
+
+&vc_mpu {
+	ti,retention-micro-volts = <750000>;
+	/* Erratum i738: Reliability impact work around */
+	ti,off-micro-volts = <750000>;
+};
+
+&vc_iva {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
+
+&vc_core {
+	ti,retention-micro-volts = <750000>;
+	ti,off-micro-volts = <0>;
+};
