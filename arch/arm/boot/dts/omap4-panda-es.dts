@@ -83,3 +83,16 @@
 &gpio1_target {
 	 ti,no-reset-on-init;
 };
+
+&omap_twl6030_vcore1 {
+	ti,vp = <&vp_core>;
+};
+
+&omap_twl6030_vcore2 {
+	ti,vp = <&vp_iva>;
+};
+
+&omap_twl6030_vcore3 {
+	/* We use TPS62361 on this platform instead */
+	status = "disabled";
+};

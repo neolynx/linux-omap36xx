@@ -1,6 +1,11 @@
 /*
  * Copyright (C) 2013 Texas Instruments Incorporated - http://www.ti.com/
  *
+ * Copyright (C) 2013 Texas Instruments Incorporated - http://www.ti.com/
+ *	Nishanth Menon
+ *
+ * TWL6030 entries specific for OMAP
+ *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
  * published by the Free Software Foundation.
@@ -19,6 +24,29 @@
 		&twl6030_pins
 		&twl6030_wkup_pins
 	>;
+
+	omap_twl6030_vcore1: vcore1 {
+		compatible = "ti,omap-twl6030-vcore1";
+		ti,boot-voltage-micro-volts = <1200000>;
+		ti,vp = <&vp_mpu>;
+	};
+
+	omap_twl6030_vcore2: vcore2 {
+		compatible = "ti,omap-twl6030-vcore2";
+		ti,boot-voltage-micro-volts = <1200000>;
+		ti,vp = <&vp_iva>;
+	};
+
+	omap_twl6030_vcore3: vcore3 {
+		compatible = "ti,omap-twl6030-vcore3";
+		ti,boot-voltage-micro-volts = <1200000>;
+		ti,vp = <&vp_core>;
+	};
+};
+
+&vc {
+	ti,i2c-high-speed;
+	ti,i2c-pad-load = <3>;
 };
 
 &omap4_pmx_wkup {
