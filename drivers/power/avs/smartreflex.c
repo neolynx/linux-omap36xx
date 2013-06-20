@@ -192,7 +192,7 @@ static void sr_set_clk_length(struct omap_sr *sr)
 
 static void sr_start_vddautocomp(struct omap_sr *sr)
 {
-	if (!sr_class || !(sr_class->enable) || !(sr_class->configure)) {
+	if (!sr_class || !(sr_class->enable)) {
 		dev_warn(&sr->pdev->dev,
 			 "%s: smartreflex class driver not registered\n",
 			 __func__);
@@ -634,7 +634,7 @@ int sr_enable(struct omap_sr *sr, unsigned long volt)
 		return 0;
 
 	/* Configure SR */
-	ret = sr_class->configure(sr);
+	ret = sr_configure_errgen(sr);
 	if (ret)
 		return ret;
 
