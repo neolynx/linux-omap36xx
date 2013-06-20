@@ -372,7 +372,8 @@ struct omap_sr_data {
 #ifdef CONFIG_POWER_AVS_OMAP
 
 /* Smartreflex module enable/disable interface */
-void omap_sr_enable(struct voltagedomain *voltdm);
+void omap_sr_enable(struct voltagedomain *voltdm,
+		    unsigned long voltage);
 void omap_sr_disable(struct voltagedomain *voltdm);
 void omap_sr_disable_reset_volt(struct voltagedomain *voltdm);
 
@@ -413,7 +414,8 @@ __init sr_get_volt_reset_func(struct omap_sr *sr);
 /* API to register the smartreflex class driver with the smartreflex driver */
 int sr_register_class(struct omap_sr_class_data *class_data);
 #else
-static inline void omap_sr_enable(struct voltagedomain *voltdm) {}
+static inline void omap_sr_enable(struct voltagedomain *voltdm,
+				  unsigned long voltage) {}
 static inline void omap_sr_disable(struct voltagedomain *voltdm) {}
 static inline void omap_sr_disable_reset_volt(
 		struct voltagedomain *voltdm) {}

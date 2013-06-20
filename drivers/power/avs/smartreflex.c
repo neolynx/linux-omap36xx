@@ -276,20 +276,33 @@ static void sr_set_clk_length(struct omap_sr *sr)
 
 static void sr_start_vddautocomp(struct omap_sr *sr)
 {
-	if (!sr_class || !(sr_class->enable)) {
+	if (!sr_class) {
 		dev_warn(&sr->pdev->dev,
 			 "%s: smartreflex class driver not registered\n",
 			 __func__);
 		return;
 	}
 
-	if (!sr_class->enable(sr))
+	if (sr_init_algs(sr)) {
+		dev_err(&sr->pdev->dev,
+			"%s: SR algorithm initialization failed\n",
+			__func__);
+		return;
+	}
+
+	if (!sr->current_nominal_voltage) {
+		pr_err("%s: voltage is not defined, can't start autocomp\n",
+		       __func__);
+		return;
+	}
+
+	if (!sr->start_calibration(sr, sr->current_nominal_voltage))
 		sr->autocomp_active = true;
 }
 
 static void sr_stop_vddautocomp(struct omap_sr *sr)
 {
-	if (!sr_class || !(sr_class->disable)) {
+	if (!sr_class) {
 		dev_warn(&sr->pdev->dev,
 			 "%s: smartreflex class driver not registered\n",
 			 __func__);
@@ -297,7 +310,12 @@ static void sr_stop_vddautocomp(struct omap_sr *sr)
 	}
 
 	if (sr->autocomp_active) {
-		sr_class->disable(sr, 1);
+		sr->stop_calibration(sr);
+		sr->volt_reset(sr);
+		if (sr_deinit_algs(sr))
+			dev_err(&sr->pdev->dev,
+				"%s: SR algorithm deinitialization failed\n",
+				__func__);
 		sr->autocomp_active = false;
 	}
 }
@@ -419,6 +437,25 @@ static void sr_v2_disable(struct omap_sr *sr)
 	/* Disable MCUDisableAcknowledge interrupt & clear pending interrupt */
 	sr_write_reg(sr, IRQSTATUS, IRQSTATUS_MCUDISABLEACKINT);
 	sr_write_reg(sr, IRQENABLE_CLR, IRQENABLE_MCUDISABLEACKINT);
+}
+
+static bool sr_is_calibration_needed(struct omap_sr *sr, unsigned long voltage)
+{
+	struct omap_sr_nvalue_table *nvalue_row;
+
+	switch (sr->calibration_period) {
+	case AVS_CALIBRATION_BOOT:
+	case AVS_CALIBRATION_PERIODIC:
+		nvalue_row = sr_retrieve_nvalue_row(sr, voltage);
+		if (nvalue_row && !nvalue_row->volt_calibrated)
+			return true;
+		return false;
+	case AVS_CALIBRATION_CONTINUOUS:
+	case AVS_CALIBRATION_SET_VOLTAGE:
+		return true;
+	default:
+		return false;
+	}
 }
 
 /* Public Functions */
@@ -902,8 +939,6 @@ int sr_notifier_control(struct omap_sr *sr, bool enable)
 			__func__);
 		return -EINVAL;
 	}
-	if (!sr->autocomp_active)
-		return -EINVAL;
 
 	/* If I could never register an ISR, why bother?? */
 	if (!(sr->notify_flags && sr->irq)) {
@@ -967,14 +1002,16 @@ int sr_register_class(struct omap_sr_class_data *class_data)
  * omap_sr_enable() -  API to enable SR clocks and to call into the
  *			registered smartreflex class enable API.
  * @voltdm:	VDD pointer to which the SR module to be configured belongs to.
+ * @voltage:	nominal voltage to calibrate
  *
  * This API is to be called from the kernel in order to enable
  * a particular smartreflex module. This API will do the initial
  * configurations to turn on the smartreflex module and in turn call
  * into the registered smartreflex class enable API.
  */
-void omap_sr_enable(struct voltagedomain *voltdm)
+void omap_sr_enable(struct voltagedomain *voltdm, unsigned long voltage)
 {
+	int res;
 	struct omap_sr *sr = _sr_lookup(voltdm);
 
 	if (IS_ERR(sr)) {
@@ -982,16 +1019,25 @@ void omap_sr_enable(struct voltagedomain *voltdm)
 		return;
 	}
 
+	/* always track current voltage */
+	sr->current_nominal_voltage = voltage;
+
 	if (!sr->autocomp_active)
 		return;
 
 	if (!sr_class || !(sr_class->enable) || !(sr_class->configure)) {
 		dev_warn(&sr->pdev->dev, "%s: smartreflex class driver not registered\n",
 			 __func__);
-		return;
-	}
+                return;
+        }
 
-	sr_class->enable(sr);
+	if (!sr_is_calibration_needed(sr, voltage))
+		return;
+
+	res = sr->start_calibration(sr, voltage);
+	if (res)
+		pr_err("%s: %s: calibration failed to start",
+		       __func__, sr->name);
 }
 
 /**
@@ -1023,6 +1069,7 @@ void omap_sr_disable(struct voltagedomain *voltdm)
 		return;
 	}
 
+	sr->stop_calibration(sr);
 	sr_class->disable(sr, 0);
 }
 
@@ -1055,6 +1102,8 @@ void omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
 		return;
 	}
 
+	sr->stop_calibration(sr);
+	sr->volt_reset(sr);
 	sr_class->disable(sr, 1);
 }
 
@@ -1487,6 +1536,17 @@ static int omap_sr_probe(struct platform_device *pdev)
 	sr_info->pdev = pdev;
 	sr_info->srid = pdev->id;
 	ATOMIC_INIT_NOTIFIER_HEAD(&sr_info->irq_notifier_list);
+
+	sr_info->start_calibration =
+		sr_get_start_calibration_func(sr_info->calibration_period);
+	sr_info->stop_calibration =
+		sr_get_stop_calibration_func(sr_info->calibration_period);
+	sr_info->start_loop =
+		sr_get_start_loop_func(sr_info->calibration_loop);
+	sr_info->stop_loop =
+		sr_get_stop_loop_func(sr_info->calibration_loop);
+	sr_info->volt_reset =
+		sr_get_volt_reset_func(sr_info);
 
 	sr_set_clk_length(sr_info);
 
