@@ -1,4 +1,4 @@
-obj-$(CONFIG_POWER_AVS_OMAP)		+= smartreflex.o
+obj-$(CONFIG_POWER_AVS_OMAP)		+= smartreflex.o smartreflex_algs.o
 obj-$(CONFIG_ROCKCHIP_IODOMAIN)		+= rockchip-io-domain.o
 
 ifneq ($(CONFIG_POWER_TI_HARDWARE_VOLTAGE_CONTROL),)

@@ -190,6 +190,13 @@ enum omap_sr_calibration_loop {
 	AVS_NO_LOOP
 };
 
+struct omap_sr;
+typedef int (*sr_start_calibration_pfunc)(struct omap_sr *, unsigned long);
+typedef int (*sr_stop_calibration_pfunc)(struct omap_sr *);
+typedef int (*sr_start_loop_pfunc)(struct omap_sr *, unsigned long);
+typedef int (*sr_stop_loop_pfunc)(struct omap_sr *);
+typedef int (*sr_volt_reset_pfunc)(struct omap_sr *);
+
 struct omap_sr {
 	char				*name;
 	struct list_head		node;
@@ -223,6 +230,15 @@ struct omap_sr {
 	u32					recalibration_period;
 	enum omap_sr_calibration_voltage	calibration_volt;
 	enum omap_sr_calibration_loop		calibration_loop;
+	sr_start_calibration_pfunc	start_calibration;
+	sr_stop_calibration_pfunc	stop_calibration;
+	sr_start_loop_pfunc		start_loop;
+	sr_stop_loop_pfunc		stop_loop;
+	sr_volt_reset_pfunc		volt_reset;
+
+	/* algorithm specific data */
+	void				*alg_data;
+	void				*loop_data;
 };
 
 /**
@@ -375,6 +391,24 @@ s32 sr_get_errvoltage(struct omap_sr *sr, s8 errgain);
 int sr_notifier_control(struct omap_sr *sr, bool enable);
 int sr_irq_notifier_register(struct omap_sr *sr, struct notifier_block *nb);
 int sr_irq_notifier_unregister(struct omap_sr *sr, struct notifier_block *nb);
+
+int sr_init_algs(struct omap_sr *sr);
+int sr_deinit_algs(struct omap_sr *sr);
+
+sr_start_calibration_pfunc
+__init sr_get_start_calibration_func(enum omap_sr_calibration_period period);
+
+sr_stop_calibration_pfunc
+__init sr_get_stop_calibration_func(enum omap_sr_calibration_period period);
+
+sr_start_loop_pfunc
+__init sr_get_start_loop_func(enum omap_sr_calibration_loop loop);
+
+sr_stop_loop_pfunc
+__init sr_get_stop_loop_func(enum omap_sr_calibration_loop loop);
+
+sr_volt_reset_pfunc
+__init sr_get_volt_reset_func(struct omap_sr *sr);
 
 /* API to register the smartreflex class driver with the smartreflex driver */
 int sr_register_class(struct omap_sr_class_data *class_data);
