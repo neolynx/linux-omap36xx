@@ -150,6 +150,25 @@ enum sr_instance {
 	OMAP_SR_NR,
 };
 
+enum omap_sr_calibration_period {
+	AVS_CALIBRATION_BOOT = 1,
+	AVS_CALIBRATION_PERIODIC,
+	AVS_CALIBRATION_CONTINUOUS,
+	AVS_CALIBRATION_SET_VOLTAGE
+};
+
+enum omap_sr_calibration_voltage {
+	AVS_VOLTAGE_NOMINAL = 1,
+	AVS_VOLTAGE_EFUSED,
+	AVS_VOLTAGE_PRECALIBRATED,
+};
+
+enum omap_sr_calibration_loop {
+	AVS_HW_LOOP = 1,
+	AVS_SW_LOOP,
+	AVS_NO_LOOP
+};
+
 struct omap_sr {
 	char				*name;
 	struct list_head		node;
@@ -172,6 +191,10 @@ struct omap_sr {
 	u32				senp_mod;
 	u32				senn_mod;
 	void __iomem			*base;
+	enum omap_sr_calibration_period		calibration_period;
+	u32					recalibration_period;
+	enum omap_sr_calibration_voltage	calibration_volt;
+	enum omap_sr_calibration_loop		calibration_loop;
 };
 
 /**
