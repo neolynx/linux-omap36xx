@@ -255,10 +255,15 @@ struct omap_sr_class_data {
  * @volt_nominal: microvolts DC that the VDD is initially programmed to
  */
 struct omap_sr_nvalue_table {
+	unsigned long volt_nominal;
 	u32 efuse_offs;
 	u32 nvalue;
 	u32 errminlimit;
-	unsigned long volt_nominal;
+	u32 volt_margin;
+	u32 volt_calibrated;
+	u32 volt_dynamic_nominal;
+	s32 volt_error;
+	u8 errgain;
 };
 
 /**
@@ -312,6 +317,8 @@ void sr_disable(struct omap_sr *sr);
 int sr_configure_errgen(struct omap_sr *sr);
 int sr_disable_errgen(struct omap_sr *sr);
 int sr_configure_minmax(struct omap_sr *sr);
+struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(
+				struct omap_sr *sr, u32 volt);
 
 /* API to register the smartreflex class driver with the smartreflex driver */
 int sr_register_class(struct omap_sr_class_data *class_data);
