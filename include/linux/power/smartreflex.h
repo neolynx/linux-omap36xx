@@ -411,8 +411,6 @@ __init sr_get_stop_loop_func(enum omap_sr_calibration_loop loop);
 sr_volt_reset_pfunc
 __init sr_get_volt_reset_func(struct omap_sr *sr);
 
-/* API to register the smartreflex class driver with the smartreflex driver */
-int sr_register_class(struct omap_sr_class_data *class_data);
 #else
 static inline void omap_sr_enable(struct voltagedomain *voltdm,
 				  unsigned long voltage) {}
