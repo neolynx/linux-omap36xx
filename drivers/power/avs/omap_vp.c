@@ -111,8 +111,13 @@ static const struct omap_vp_reg_data omap_vp_reg_type2 = {
 #define STEP_SMPSTIMEOUT_MASK		(0xffff << 8)
 #define STEP_VSTEP_MASK			(0xff << 0)
 
+static void omap_vp_reg_lock(void *lock_arg);
+static void omap_vp_reg_unlock(void *lock_arg);
+
 /* 32 bit voltage processor registers */
 static struct regmap_config omap_vp_regmap_config = {
+	.lock = omap_vp_reg_lock,
+	.unlock = omap_vp_reg_unlock,
 	.reg_bits = 32,
 	.val_bits = 32,
 	.reg_stride = 4,
@@ -154,6 +159,9 @@ struct omap_vp {
 	u32 max_uV;
 	u32 min_step_uV;
 	u32 max_step_uV;
+	/* regmap lock */
+	spinlock_t lock;
+	unsigned long lock_flags;
 };
 
 static const struct of_device_id omap_vp_of_match[] = {
@@ -166,6 +174,18 @@ MODULE_DEVICE_TABLE(of, omap_vp_of_match);
 
 static LIST_HEAD(omap_vp_list);
 static DEFINE_MUTEX(omap_vp_list_mutex);
+
+static void omap_vp_reg_lock(void *lock_arg)
+{
+	struct omap_vp *vp = (struct omap_vp *)lock_arg;
+	spin_lock_irqsave(&vp->lock, vp->lock_flags);
+}
+
+static void omap_vp_reg_unlock(void *lock_arg)
+{
+	struct omap_vp *vp = (struct omap_vp *)lock_arg;
+	spin_unlock_irqrestore(&vp->lock, vp->lock_flags);
+}
 
 /**
  * omap_vp_check_txdone() - inline helper to see if TRANXDONE is set
@@ -895,6 +915,14 @@ static int omap_vp_probe(struct platform_device *pdev)
 		return -ENOMEM;
 	}
 
+	vp = devm_kzalloc(dev, sizeof(*vp), GFP_KERNEL);
+	if (!vp) {
+		dev_err(dev, "%s: Unable to allocate VP\n", __func__);
+		return -ENOMEM;
+	}
+
+	spin_lock_init(&vp->lock);
+	omap_vp_regmap_config.lock_arg = vp;
 	regmap = devm_regmap_init_mmio(dev, base, &omap_vp_regmap_config);
 	if (IS_ERR(regmap)) {
 		ret = PTR_ERR(regmap);
@@ -902,11 +930,6 @@ static int omap_vp_probe(struct platform_device *pdev)
 		return ret;
 	}
 
-	vp = devm_kzalloc(dev, sizeof(*vp), GFP_KERNEL);
-	if (!vp) {
-		dev_err(dev, "%s: Unable to allocate VP\n", __func__);
-		return -ENOMEM;
-	}
 	vp->dev = dev;
 	vp->regs = match->data;
 	vp->regmap = regmap;
