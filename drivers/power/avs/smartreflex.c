@@ -460,6 +460,64 @@ struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(
 }
 
 /**
+ * sr_get_errvoltage -	returns voltage error
+ * @sr:			SR module
+ * @errgain:		error gain, used for voltage error calculation
+ *
+ * Returns difference in uV between nominal voltage and voltage,
+ * programmed by NVALUE. Designed for using in software calibration loop.
+ * returns voltage or 0 in case of failure.
+ */
+s32 sr_get_errvoltage(struct omap_sr *sr, s8 errgain)
+{
+	u32 val;
+	s32 volt_err_percent, gain_percent, volt_delta_uv;
+
+	if (!sr) {
+		pr_err("%s: NULL omap_sr from %pF\n", __func__,
+		       (void *)_RET_IP_);
+		return 0;
+	}
+
+	if (!sr->pmic_step_uv) {
+		pr_err("%s: %s: pmic step is not defined\n",
+		       __func__, sr->name);
+		return 0;
+	}
+
+	switch (sr->ip_type) {
+	case SR_TYPE_V1:
+		val = sr_read_reg(sr, SENERROR_V1);
+		break;
+	case SR_TYPE_V2:
+		val = sr_read_reg(sr, SENERROR_V2);
+		break;
+	default:
+		pr_err("%s: %s: UNKNOWN IP type %d\n", __func__,
+		       sr->name, sr->ip_type);
+		return 0;
+	}
+
+	val = (val & SENERROR_AVGERROR_MASK) >>
+	       __ffs(SENERROR_AVGERROR_MASK);
+
+	/* % */
+	volt_err_percent = DIV_ROUND_CLOSEST((s8)val * 8, 10);
+
+	/* (uV / %) */
+	gain_percent = errgain * sr->pmic_step_uv / 100;
+
+	/* (uV / % ) * % = uV */
+	volt_delta_uv = volt_err_percent * gain_percent;
+
+	pr_debug("%s: %s: volt_err (%d %%) gain (%d uV/%%) delta (%d uV)\n",
+		 __func__, sr->name, volt_err_percent,
+		 gain_percent, volt_delta_uv);
+
+	return volt_delta_uv;
+}
+
+/**
  * sr_configure_errgen() - Configures the SmartReflex to perform AVS using the
  *			 error generator module.
  * @sr:			SR module to be configured.

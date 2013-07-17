@@ -82,6 +82,10 @@
 #define SRCONFIG_LVTSENPENABLE		BIT(2)
 #define SRCONFIG_DELAYCTRL		BIT(2)
 
+/* SENERROR */
+#define SENERROR_SENERROR_MASK		(0xff << 0)
+#define SENERROR_AVGERROR_MASK		(0xff << 8)
+
 /* AVGWEIGHT */
 #define AVGWEIGHT_SENPAVGWEIGHT_SHIFT	2
 #define AVGWEIGHT_SENNAVGWEIGHT_SHIFT	0
@@ -367,6 +371,7 @@ int sr_disable_errgen(struct omap_sr *sr);
 int sr_configure_minmax(struct omap_sr *sr);
 struct omap_sr_nvalue_table *sr_retrieve_nvalue_row(
 				struct omap_sr *sr, u32 volt);
+s32 sr_get_errvoltage(struct omap_sr *sr, s8 errgain);
 int sr_notifier_control(struct omap_sr *sr, bool enable);
 int sr_irq_notifier_register(struct omap_sr *sr, struct notifier_block *nb);
 int sr_irq_notifier_unregister(struct omap_sr *sr, struct notifier_block *nb);
