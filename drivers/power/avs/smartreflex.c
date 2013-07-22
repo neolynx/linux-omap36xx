@@ -1679,8 +1679,7 @@ static int omap_sr_remove(struct platform_device *pdev)
 		return -EINVAL;
 	}
 
-	if (sr_info->autocomp_active)
-		sr_stop_vddautocomp(sr_info);
+	sr_stop_vddautocomp(sr_info);
 	if (sr_info->dbg_dir)
 		debugfs_remove_recursive(sr_info->dbg_dir);
 
@@ -1698,8 +1697,7 @@ static void omap_sr_shutdown(struct platform_device *pdev)
 		return;
 	}
 
-	if (sr_info->autocomp_active)
-		sr_stop_vddautocomp(sr_info);
+	sr_stop_vddautocomp(sr_info);
 
 	return;
 }
