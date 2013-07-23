@@ -651,6 +651,10 @@ int sr_disable_errgen(struct omap_sr *sr)
 		return -EINVAL;
 	}
 
+	/* Check if SR clocks are already disabled. If yes do nothing */
+	if (pm_runtime_suspended(&sr->pdev->dev))
+		return 0;
+
 	switch (sr->ip_type) {
 	case SR_TYPE_V1:
 		errconfig_offs = ERRCONFIG_V1;
