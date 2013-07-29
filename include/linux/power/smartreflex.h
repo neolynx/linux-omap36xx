@@ -51,6 +51,11 @@
 #define IRQENABLE_CLR		0x30
 #define SENERROR_V2		0x34
 #define ERRCONFIG_V2		0x38
+#define LVTSENVAL		0x3C
+#define LVTSENMIN		0x40
+#define LVTSENMAX		0x44
+#define LVTSENAVG		0x48
+#define LVTNVALUERECIPROCAL	0x4C
 
 /* Bit/Shift Positions */
 
@@ -64,11 +69,16 @@
 #define SRCONFIG_CLKCTRL_SHIFT		0
 
 #define SRCONFIG_ACCUMDATA_MASK		(0x3ff << 22)
+#define SRCONFIG_LVTSENNENABLE_MASK	(1 << 3)
+#define SRCONFIG_LVTSENPENABLE_MASK	(1 << 2)
 
 #define SRCONFIG_SRENABLE		BIT(11)
 #define SRCONFIG_SENENABLE		BIT(10)
 #define SRCONFIG_ERRGEN_EN		BIT(9)
 #define SRCONFIG_MINMAXAVG_EN		BIT(8)
+#define SRCONFIG_LVTSENENABLE		BIT(4)
+#define SRCONFIG_LVTSENNENABLE		BIT(3)
+#define SRCONFIG_LVTSENPENABLE		BIT(2)
 #define SRCONFIG_DELAYCTRL		BIT(2)
 
 /* AVGWEIGHT */
@@ -180,6 +190,7 @@ struct omap_sr {
 	int				srid;
 	int				ip_type;
 	int				nvalue_count;
+	bool				lvt_sensor;
 	bool				autocomp_active;
 	u32				clk_length;
 	u32				err_weight;
@@ -284,6 +295,7 @@ struct omap_sr_nvalue_table {
 	unsigned long volt_nominal;
 	u32 efuse_offs;
 	u32 nvalue;
+	u32 nvalue_lvt;
 	u32 errminlimit;
 	u32 volt_margin;
 	u32 volt_calibrated;

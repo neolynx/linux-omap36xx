@@ -436,6 +436,11 @@ int sr_configure_errgen(struct omap_sr *sr)
 		return -EINVAL;
 	}
 
+	if (sr->lvt_sensor) {
+		sr_config |= SRCONFIG_LVTSENNENABLE | SRCONFIG_LVTSENPENABLE;
+		sr_config |= SRCONFIG_LVTSENENABLE;
+	}
+
 	sr_config |= ((senn_en << senn_shift) | (senp_en << senp_shift));
 	sr_write_reg(sr, SRCONFIG, sr_config);
 	sr_errconfig = (sr->err_weight << ERRCONFIG_ERRWEIGHT_SHIFT) |
@@ -553,6 +558,11 @@ int sr_configure_minmax(struct omap_sr *sr)
 		return -EINVAL;
 	}
 
+	if (sr->lvt_sensor) {
+		sr_config |= SRCONFIG_LVTSENNENABLE | SRCONFIG_LVTSENPENABLE;
+		sr_config |= SRCONFIG_LVTSENENABLE;
+	}
+
 	sr_config |= ((senn_en << senn_shift) | (senp_en << senp_shift));
 	sr_write_reg(sr, SRCONFIG, sr_config);
 	sr_avgwt = (sr->senp_avgweight << AVGWEIGHT_SENPAVGWEIGHT_SHIFT) |
@@ -643,6 +653,9 @@ int sr_enable(struct omap_sr *sr, unsigned long volt)
 		return ret;
 
 	sr_write_reg(sr, NVALUERECIPROCAL, nvalue_row->nvalue);
+
+	if (sr->lvt_sensor && nvalue_row->nvalue_lvt)
+		sr_write_reg(sr, LVTNVALUERECIPROCAL, nvalue_row->nvalue_lvt);
 
 	/* SRCONFIG - enable SR */
 	sr_modify_reg(sr, SRCONFIG, SRCONFIG_SRENABLE, SRCONFIG_SRENABLE);
@@ -850,11 +863,17 @@ static int __init sr_set_nvalues(struct omap_sr *sr_info,
 	u32 num_entry_values = 5;
 	struct omap_sr_nvalue_table *nvalue_table;
 	void __iomem *efuse_base;
+	void __iomem *efuse_lvt_base = NULL;
 	struct resource *mem;
 	u32 i, j;
 
 	pname = "ti,fuse_len_24bits";
 	fuse_len_24bits = of_property_read_bool(pdev->dev.of_node, pname);
+
+	pname = "ti,lvt_sensor";
+	sr_info->lvt_sensor = of_property_read_bool(pdev->dev.of_node, pname);
+	if (sr_info->lvt_sensor)
+		num_entry_values++;
 
 	pname = "ti,avs_info";
 	prop = of_find_property(pdev->dev.of_node, pname, NULL);
@@ -890,6 +909,18 @@ static int __init sr_set_nvalues(struct omap_sr *sr_info,
 		return PTR_ERR(efuse_base);
 	}
 
+	if (sr_info->lvt_sensor) {
+		mem = platform_get_resource_byname(pdev, IORESOURCE_MEM,
+						   "efuse_lvt-address");
+		efuse_lvt_base = devm_ioremap_nocache(&pdev->dev, mem->start,
+						  resource_size(mem));
+		if (IS_ERR(efuse_lvt_base)) {
+			dev_err(&pdev->dev, "%s: ioremap for EFUSE failed\n",
+				__func__);
+			return PTR_ERR(efuse_lvt_base);
+		}
+	}
+
 	nvalue_table =
 		devm_kzalloc(&pdev->dev,
 			     sizeof(struct omap_sr_nvalue_table) *
@@ -904,13 +935,19 @@ static int __init sr_set_nvalues(struct omap_sr *sr_info,
 	avs_info_entry = prop->value;
 	for (i = 0, j = 0; i < num_table_entries; i++) {
 		u32 volt_nominal, efuse_offs, errminlimit,
-			nvalue, errgain, volt_margin;
+			nvalue, errgain, volt_margin, nvalue_lvt = 0;
 
 		volt_nominal = be32_to_cpup(avs_info_entry++);
 		efuse_offs = be32_to_cpup(avs_info_entry++);
 		errminlimit = be32_to_cpup(avs_info_entry++);
 		errgain = be32_to_cpup(avs_info_entry++);
 		volt_margin = be32_to_cpup(avs_info_entry++);
+
+		if (sr_info->lvt_sensor && !efuse_lvt_base) {
+			u32 efuse_lvt_offs = be32_to_cpup(avs_info_entry++);
+			nvalue_lvt = readl(efuse_lvt_base + efuse_lvt_offs);
+		}
+
 		/*
 		 * In OMAP4 the efuse registers are 24 bit aligned.
 		 * A __raw_readl will fail for non-32 bit aligned address
@@ -928,6 +965,7 @@ static int __init sr_set_nvalues(struct omap_sr *sr_info,
 			continue;
 
 		nvalue_table[j].nvalue = nvalue;
+		nvalue_table[j].nvalue_lvt = nvalue_lvt;
 		nvalue_table[j].efuse_offs = efuse_offs;
 		nvalue_table[j].errminlimit = errminlimit;
 		nvalue_table[j].volt_nominal = volt_nominal;
@@ -1183,6 +1221,7 @@ static int omap_sr_probe(struct platform_device *pdev)
 	struct omap_sr *sr_info;
 	struct resource *irq;
 	struct dentry *nvalue_dir;
+	struct dentry *nvalue_lvt_dir;
 	int i, ret = 0;
 
 	sr_info = devm_kzalloc(&pdev->dev, sizeof(struct omap_sr), GFP_KERNEL);
@@ -1282,6 +1321,29 @@ static int omap_sr_probe(struct platform_device *pdev)
 		ret = -ENODATA;
 		goto err_debugfs;
 	}
+
+	if (!sr_info->lvt_sensor)
+		goto skip_lvt;
+
+	nvalue_lvt_dir = debugfs_create_dir("nvalue_lvt", sr_info->dbg_dir);
+	if (IS_ERR_OR_NULL(nvalue_lvt_dir)) {
+		dev_err(&pdev->dev, "%s: Unable to create debugfs directory"
+			"for lvt sensor's n-values\n", __func__);
+		ret = PTR_ERR(nvalue_lvt_dir);
+		goto err_debugfs;
+	}
+
+	for (i = 0; i < sr_info->nvalue_count; i++) {
+		char name[NVALUE_NAME_LEN + 1];
+
+		snprintf(name, sizeof(name), "volt_%lu",
+			 sr_info->nvalue_table[i].volt_nominal);
+		(void) debugfs_create_x32(name, S_IRUGO | S_IWUSR,
+				nvalue_lvt_dir,
+				&(sr_info->nvalue_table[i].nvalue_lvt));
+	}
+
+skip_lvt:
 
 	for (i = 0; i < sr_info->nvalue_count; i++) {
 		char name[NVALUE_NAME_LEN + 1];

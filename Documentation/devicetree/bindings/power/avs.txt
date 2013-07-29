@@ -51,10 +51,11 @@ the information of registers in the same order as described by reg-names
 - ti,autocomp_active: Bool value
 	Defines is AVS autocompleteion should be activated immediately on
 	driver probe
+- ti,lvt_sensor: Optional. Defines is LVT sensor present on board or not
 - ti,pmic_step_uv: Optional. Needed for software calibration loop
 - ti,boot voltage: Optional. Defines boot voltage in case if
 	ti,autocomp_active property is set to true
-- ti,avs_info: An array of 5-tuples u32 items providing information about AVS
+- ti,avs_info: An array of 5 or 6 tuples u32 items providing information about AVS
 	configuration needed per operational voltage of the device.
 	Each item consists of the following in the same order:
 	volt: voltage in uV - Nominal voltage
@@ -62,3 +63,4 @@ the information of registers in the same order as described by reg-names
 	errminlimit: - configuration setting for hardware per voltage
 	errgain: - configuration setting for hardware per voltage
 	volt_margin: - margin to be add for calibrated voltage
+	efuse_lvt: - optional. Offset for LVT nvalue per voltage
