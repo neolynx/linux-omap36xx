@@ -942,43 +942,6 @@ int sr_notifier_control(struct omap_sr *sr, bool enable)
 }
 
 /**
-<<<<<<< HEAD
- * sr_register_class() - API to register a smartreflex class parameters.
- * @class_data:	The structure containing various sr class specific data.
- *
- * This API is to be called by the smartreflex class driver to register itself
- * with the smartreflex driver during init. Returns 0 on success else the
- * error value.
- */
-int sr_register_class(struct omap_sr_class_data *class_data)
-{
-	struct omap_sr *sr_info;
-
-	if (!class_data) {
-		pr_warn("%s:, Smartreflex class data passed is NULL\n",
-			__func__);
-		return -EINVAL;
-	}
-
-	if (sr_class) {
-		pr_warn("%s: Smartreflex class driver already registered\n",
-			__func__);
-		return -EBUSY;
-	}
-
-	sr_class = class_data;
-
-	/*
-	 * Call into late init to do initializations that require
-	 * both sr driver and sr class driver to be initiallized.
-	 */
-	list_for_each_entry(sr_info, &sr_list, node)
-		sr_late_init(sr_info);
-
-	return 0;
-}
-
-/**
  * omap_sr_enable() -  API to enable SR clocks and to call into the
  *			registered smartreflex class enable API.
  * @voltdm:	VDD pointer to which the SR module to be configured belongs to.
@@ -1004,12 +967,6 @@ void omap_sr_enable(struct voltagedomain *voltdm, unsigned long voltage)
 
 	if (!sr->autocomp_active)
 		return;
-
-	if (!sr_class || !(sr_class->enable) || !(sr_class->configure)) {
-		dev_warn(&sr->pdev->dev, "%s: smartreflex class driver not registered\n",
-			 __func__);
-                return;
-        }
 
 	if (!sr_is_calibration_needed(sr, voltage))
 		return;
@@ -1043,14 +1000,7 @@ void omap_sr_disable(struct voltagedomain *voltdm)
 	if (!sr->autocomp_active)
 		return;
 
-	if (!sr_class || !(sr_class->disable)) {
-		dev_warn(&sr->pdev->dev, "%s: smartreflex class driver not registered\n",
-			 __func__);
-		return;
-	}
-
 	sr->stop_calibration(sr);
-	sr_class->disable(sr, 0);
 }
 
 /**
@@ -1076,15 +1026,8 @@ void omap_sr_disable_reset_volt(struct voltagedomain *voltdm)
 	if (!sr->autocomp_active)
 		return;
 
-	if (!sr_class || !(sr_class->disable)) {
-		dev_warn(&sr->pdev->dev, "%s: smartreflex class driver not registered\n",
-			 __func__);
-		return;
-	}
-
 	sr->stop_calibration(sr);
 	sr->volt_reset(sr);
-	sr_class->disable(sr, 1);
 }
 
 /**
