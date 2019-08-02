@@ -795,17 +795,7 @@ int sr_enable(struct omap_sr *sr, unsigned long volt)
 		return -EINVAL;
 	}
 
-	volt_data = omap_voltage_get_voltdata(sr->voltdm, volt);
-
-	if (IS_ERR(volt_data)) {
-		dev_warn(&sr->pdev->dev, "%s: Unable to get voltage table for nominal voltage %ld\n",
-			 __func__, volt);
-		return PTR_ERR(volt_data);
-	}
-
-	nvalue_row = sr_retrieve_nvalue_row(sr, volt_data->sr_efuse_offs);
-	//nvalue_row = sr_retrieve_nvalue_row(sr, volt);
-
+	nvalue_row = sr_retrieve_nvalue_row(sr, volt);
 	if (!nvalue_row) {
 		dev_warn(&sr->pdev->dev, "%s: failure getting SR data for this voltage %ld\n",
 			 __func__, volt);
