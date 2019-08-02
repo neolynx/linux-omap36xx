@@ -561,7 +561,7 @@ static int omap_pmic_probe(struct platform_device *pdev)
 	pmic->ops = &omap_generic_pmic_ops;
 	pmic->info = match->data;
 
-	initdata = of_get_regulator_init_data(dev, node);
+	initdata = of_get_regulator_init_data(dev, node, desc);
 	if (!initdata) {
 		dev_err(dev, "%s: Unable to alloc regulator init data\n",
 			__func__);
