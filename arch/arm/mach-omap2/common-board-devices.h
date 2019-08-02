@@ -4,6 +4,7 @@
 
 #include <sound/tlv320aic3x.h>
 #include <linux/mfd/menelaus.h>
+#include "twl-common.h"
 
 void *n8x0_legacy_init(void);
 
