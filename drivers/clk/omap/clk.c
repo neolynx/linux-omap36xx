@@ -22,6 +22,7 @@
 #include <linux/of_device.h>
 #include <linux/platform_device.h>
 #include <linux/string.h>
+#include <linux/clk.h>
 
 static const struct of_device_id omap_clk_of_match[] = {
 	{.compatible = "ti,omap-clock",},
