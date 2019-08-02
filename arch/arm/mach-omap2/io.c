@@ -37,6 +37,7 @@
 #include "clock.h"
 #include "clock2xxx.h"
 #include "clock3xxx.h"
+#include "omap-pm.h"
 #include "sdrc.h"
 #include "control.h"
 #include "serial.h"
@@ -420,6 +421,8 @@ static void __init __maybe_unused omap_hwmod_init_postsetup(void)
 	postsetup_state = _HWMOD_STATE_ENABLED;
 #endif
 	omap_hwmod_for_each(_set_hwmod_postsetup_state, &postsetup_state);
+
+	omap_pm_if_early_init();
 }
 
 #ifdef CONFIG_SOC_OMAP2420

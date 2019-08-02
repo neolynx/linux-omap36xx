@@ -16,11 +16,11 @@
 #include <linux/pm_opp.h>
 #include <linux/export.h>
 #include <linux/suspend.h>
-#include <linux/clk.h>
 #include <linux/cpu.h>
 
 #include <asm/system_misc.h>
 
+#include "omap-pm.h"
 #include "omap_device.h"
 #include "common.h"
 
@@ -251,6 +251,7 @@ static int __init omap2_common_pm_init(void)
 }
 
 int (*omap_pm_soc_init)(void);
+omap_postcore_initcall(omap2_common_pm_init);
 
 int __init omap2_common_pm_late_init(void)
 {
