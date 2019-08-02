@@ -30,6 +30,7 @@
 #include "powerdomain.h"
 #include "clockdomain.h"
 #include "pm.h"
+#include "twl-common.h"
 
 #ifdef CONFIG_SUSPEND
 /*
