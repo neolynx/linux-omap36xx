@@ -244,7 +244,7 @@ int __maybe_unused omap_pm_nop_init(void)
 static int __init omap2_common_pm_init(void)
 {
 	if (!of_have_populated_dt())
-		omap2_init_processor_devices();
+		omap3_init_voltages();
 	omap_pm_if_init();
 
 	return 0;
