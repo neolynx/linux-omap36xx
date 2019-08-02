@@ -240,6 +240,7 @@ int __maybe_unused omap_pm_nop_init(void)
 	else
 		devinfo.name = "cpufreq-cpu0";
 	platform_device_register_full(&devinfo);
+        return 0;
 }
 
 static inline void omap_init_cpufreq(void)
